@@ -218,12 +218,101 @@ paths:
         default:
           description: Error
           schema:
-            $ref: "#/definitions/ErrorResponse"    
+            $ref: "#/definitions/ErrorResponse"
+  /user/resetUser:
+    x-swagger-router-controller: userManage
+    get:
+      tags:
+      - user
+      security: []
+      summary: resetUser in
+      description: resetUser user
+      # used as the method name of the controller
+      operationId: resetUser
+      parameters:
+      - name: EmailAddress
+        in: query
+        description: EmailAddress to reset
+        required: true
+        type: string
+      responses:
+        200:
+          description: Success
+          schema:
+            $ref: "#/definitions/UserModel"
+        # responses may fall through to errors
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+  /user/validateResetPasswordLink:
+    x-swagger-router-controller: userManage
+    get:
+      tags:
+      - user
+      security: []
+      summary: resetUser in
+      description: resetUser user
+      # used as the method name of the controller
+      operationId: validateResetPasswordLink
+      parameters:
+      - name: EmailAddress
+        in: query
+        description: EmailAddress to reset
+        required: true
+        type: string
+      - name: VerificationCode
+        in: query
+        description: VerificationCode to reset
+        required: true
+        type: string
+      responses:
+        200:
+          description: Success
+          schema:
+            $ref: "#/definitions/UserModel"
+        # responses may fall through to errors
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+  /user/updatePassword:
+    x-swagger-router-controller: userManage
+    get:
+      tags:
+      - user
+      security: []
+      summary: updatePassword in
+      description: updatePassword user
+      # used as the method name of the controller
+      operationId: updatePassword
+      parameters:
+      - name: EmailAddress
+        in: query
+        description: EmailAddress to reset
+        required: true
+        type: string
+      - name: Password
+        in: query
+        description: VerificationCode to reset
+        required: true
+        type: string
+      responses:
+        200:
+          description: Success
+          schema:
+            $ref: "#/definitions/UserModel"
+        # responses may fall through to errors
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
   /user/createUser:
     x-swagger-router-controller: userManage
     post:
       tags:
       - user
+      security: []
       summary: create a new user
       description: create a new user
       # used as the method name of the controller
@@ -337,6 +426,37 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UserModel'
+      responses:
+        200:
+          description: Success
+          schema:
+            $ref: "#/definitions/SuccessResponse"
+        # responses may fall through to errors
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /user/activate:
+    x-swagger-router-controller: userManage
+    get:
+      tags:
+      - user
+      security: []
+      summary: activate user
+      description: activate user
+      # used as the method name of the controller
+      operationId: activate
+      parameters:
+      - name: UserID
+        in: query
+        description: User ID
+        required: true
+        type: string
+      - name: ActivateKey
+        in: query
+        description: ActivateKey
+        required: true
+        type: string
       responses:
         200:
           description: Success

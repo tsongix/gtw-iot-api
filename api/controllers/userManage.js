@@ -18,7 +18,12 @@ module.exports = {
   authenticate: authenticate,
   getSettings: getSettings,
   updateSettings: updateSettings,
-  logIn: logIn
+  logIn: logIn,
+  activate: activate,
+  deleteUser: deleteUser,
+  resetUser: resetUser,
+  validateResetPasswordLink: validateResetPasswordLink,
+  updatePassword: updatePassword
 };
 
 function createUser(req, res) {
@@ -48,8 +53,8 @@ function createUser(req, res) {
           var crypto = require('crypto');
           userobj['UserID'] = uuidv1();
           userobj['Created'] = epochtime;
-          userobj['HashExpire'] = epochtime + 3600 * 1; // expire in one hour
-          userobj['Hash'] = crypto.randomBytes(20).toString('hex');
+          userobj['VerificationCodeExpire'] = epochtime + 1800; // expire in 30 minutes
+          userobj['VerificationCode'] = crypto.randomBytes(20).toString('hex');
           userobj['ApiKey'] = crypto.randomBytes(16).toString('hex');
           userobj['Active'] = 0;
           var params = {
@@ -57,14 +62,12 @@ function createUser(req, res) {
             Item : userobj,
             ConditionExpression : "attribute_not_exists(UserID)"
           };
-          console.log(params)
           shareUtil.awsclient.put(params, function(err, data) {
           if (err) {
             var msg = "Error:" + JSON.stringify(err, null, 2);
             console.error(msg);
             shareUtil.SendInternalErr(res,msg);
           }else{
-            console.log(userobj);
             shareUtil.SendSuccessWithData(res, userobj);
           }
           });
@@ -78,6 +81,61 @@ function createUser(req, res) {
   // this sends back a JSON response which is a single string
 }
 
+function resetUser(req, res) {
+  var emailid = req.swagger.params.EmailAddress.value;
+  if(emailid)
+  {
+        IsEmailExist(emailid, function(ret1,data){
+          if (ret1) { // exists
+            // auto generate user id
+            var epochtime = Math.floor((new Date).getTime()/1000);
+            var uuidv1 = require('uuid/v1');
+            var crypto = require('crypto');
+            var updateItems = "set VerificationCodeExpire = :v0, VerificationCode = :v1, Active = :v2";
+            var expressvalues = {};
+            expressvalues[":v0"] = epochtime + 1800;
+            expressvalues[":v1"] = crypto.randomBytes(20).toString('hex');
+            expressvalues[":v2"] = 0;
+
+            var updateParams = {
+                  TableName : shareUtil.tables.users,
+                  Key : {
+                    UserID : data.Items[0].UserID,
+                },
+                UpdateExpression : updateItems,
+                ExpressionAttributeValues : expressvalues
+              };
+            shareUtil.awsclient.update(updateParams, function (err, data1) {
+                 if (err) {
+                     var msg = "Error:" +  JSON.stringify(err, null, 2);
+                     console.error(msg);
+                     shareUtil.SendInternalErr(res,'Internal Err');
+                 } else {
+                   console.log("user reset!");
+                   var resetinfo = {
+                     VerificationCode: expressvalues[":v1"],
+                     UserID: data.Items[0].UserID
+                   };
+                   shareUtil.SendSuccessWithData(res,resetinfo);
+                 }
+             });
+
+          }
+          else {
+            console.log("user not exist");
+            shareUtil.SendInvalidInput(res, 'User not exists');
+          }
+
+        });
+  }
+  else {
+    console.log("is valid = false1");
+     shareUtil.SendInvalidInput(res, shareUtil.constants.INVALID_INPUT);
+  }
+
+
+  // this sends back a JSON response which is a single string
+}
 
 function updateUser(req, res) {
   var userobj = req.body;
@@ -200,6 +258,43 @@ function getSettings(req, res) {
   // this sends back a JSON response which is a single string
 }
 
+function singleDeleteUser(userid, callback){
+  var params = {
+    TableName: shareUtil.tables.users,
+      Key : {
+        UserID : userid
+      }
+  };
+  console.log(params)
+  shareUtil.awsclient.delete(params, function(err, data) {
+    callback(err,data);
+  });
+}
+
+function deleteUser(req, res) {
+  var userid = req.swagger.params.userID.value;
+
+  if (typeof userid == "undefined")
+  {
+    shareUtil.SendInvalidInput(res, shareUtil.constants.INVALID_INPUT);
+  }
+  else {
+      singleDeleteUser(userid, function(err,data){
+        if(err){
+          var msg = "Error:" + JSON.stringify(err, null, 2);
+          console.error(msg);
+          shareUtil.SendInternalErr(res,msg);
+        }
+        else{
+          shareUtil.SendSuccess(res);
+        }
+
+      });
+  }
+
+  // this sends back a JSON response which is a single string
+}
+
 function updateSettings(req, res) {
   var settingobj = req.body;
   console.log(settingobj);
@@ -255,7 +350,151 @@ function updateSettings(req, res) {
      });
   }
 }
+function updatePassword(req, res)
+{
+  var emailid = req.swagger.params.EmailAddress.value;
+  var password = req.swagger.params.Password.value;
 
+  if (emailid && password){
+    IsEmailExist(emailid,function(ret1,data){
+      if(ret1){
+
+        var updateItems = "set Password = :v0, Active = :v1";
+        var expressvalues = {};
+        expressvalues[":v0"] = password;
+        expressvalues[":v1"] = 1;
+
+        var updateParams = {
+              TableName : shareUtil.tables.users,
+              Key : {
+                UserID : data.Items[0].UserID,
+            },
+            UpdateExpression : updateItems,
+            ExpressionAttributeValues : expressvalues
+          };
+        shareUtil.awsclient.update(updateParams, function (err, data1) {
+             if (err) {
+                 var msg = "Error:" +  JSON.stringify(err, null, 2);
+                 console.error(msg);
+                 shareUtil.SendInternalErr(res,'Internal Err');
+             } else {
+               console.log("user password updated!");
+               shareUtil.SendSuccess(res);
+             }
+         });
+      }
+      else{
+        shareUtil.SendInvalidInput(res, 'User not exists');
+      }
+    });
+  }
+  else {
+    shareUtil.SendInvalidInput(res, shareUtil.constants.INVALID_INPUT);
+  }
+}
+
+function validateResetPasswordLink(req, res)
+{
+  var emailid = req.swagger.params.EmailAddress.value;
+  var vercode = req.swagger.params.VerificationCode.value;
+
+  if (emailid && vercode){
+    IsEmailExist(emailid,function(ret1,data){
+      if(ret1){
+        if (vercode === data.Items[0].VerificationCode){
+          var epochtime = Math.floor((new Date).getTime()/1000);
+          if (epochtime > data.Items[0].VerificationCodeExpire)
+          {
+            shareUtil.SendInvalidInput(res, 'Verification Code Expired');
+          }
+          else{
+            shareUtil.SendSuccess(res);
+          }
+        }
+        else{
+          shareUtil.SendInvalidInput(res, 'Verification Code Not Match');
+        }
+      }
+      else{
+        shareUtil.SendInvalidInput(res, 'User not exists');
+      }
+    });
+  }
+  else {
+    shareUtil.SendInvalidInput(res, shareUtil.constants.INVALID_INPUT);
+  }
+}
+
+function activate(req, res) {
+  var userid = req.swagger.params.UserID.value;
+  var actkey = req.swagger.params.ActivateKey.value;
+  if (typeof userid == "undefined" || typeof actkey == "undefined")
+  {
+    shareUtil.SendInvalidInput(res, shareUtil.constants.INVALID_INPUT);
+  }
+  else {
+
+        var params = {
+          TableName: shareUtil.tables.users,
+          KeyConditionExpression : "UserID = :v1",
+          ExpressionAttributeValues : {':v1' : userid.toString()}
+        };
+        shareUtil.awsclient.query(params, function(err, data) {
+        if (err) {
+          var msg = "Error:" + JSON.stringify(err, null, 2);
+          console.error(msg);
+          shareUtil.SendInternalErr(res,msg);
+        }else{
+          if (data.Count == 1) {
+            if (typeof data.Items[0].VerificationCode == "undefined")
+            {
+              var msg = "Error: Cannot find data"
+              shareUtil.SendInvalidInput(res,msg);
+            }
+            else {
+              if (actkey === data.Items[0].VerificationCode)
+              {
+                // check HashExpire
+                var epochtime = (new Date).getTime() / 1000;
+                if (data.Items[0].VerificationCodeExpire > epochtime){
+
+                  activateUser(userid, function(err){
+                    if (err){
+                        console.log("cannot activate user");
+                    }
+                    else{
+                      console.log("activate user succeed");
+                      shareUtil.SendSuccess(res);
+                    }
+                  });
+
+
+                }
+                else{
+                  var msg = "Register expired, please register again";
+                  // delete user here
+                  shareUtil.SendInvalidInput(res,msg);
+                }
+
+              }
+              else{
+                var msg = "Cannot verify VerificationCode";
+                shareUtil.SendInvalidInput(res,msg);
+              }
+            }
+
+          }
+          else {
+              var msg = "Error: Cannot find data"
+             shareUtil.SendInvalidInput(res,msg);
+          }
+
+        }
+      });
+  }
+
+  // this sends back a JSON response which is a single string
+}
 
 function authenticate(apikey, callback) {
   var Params = {
@@ -306,7 +545,9 @@ function logIn(req, res){
           {
              if (data.Items[0].Active == 0)
              {
-               shareUtil.SendInvalidInput(res, 'log in failed, user not active');
+               singleDeleteUser(data.Items[0].UserID, function(err,data){
+                  shareUtil.SendInvalidInput(res, 'Please register again');
+               });
              }
              else {
                 shareUtil.SendSuccessWithData(res, data.Items[0]);
@@ -314,11 +555,11 @@ function logIn(req, res){
 
           }
           else {
-            shareUtil.SendInvalidInput(res, 'log in failed, wrong password');
+            shareUtil.SendInvalidInput(res, 'Wrong credentials');
           }
         }
         else {
-          shareUtil.SendInvalidInput(res, 'log in failed');
+          shareUtil.SendInvalidInput(res, 'Wrong credentials');
         }
 
       });
@@ -329,6 +570,22 @@ function logIn(req, res){
   // this sends back a JSON response which is a single string
 }
 
+function activateUser(userid, callback)
+{
+  var updateParams = {
+        TableName : shareUtil.tables.users,
+        Key : {
+          UserID : userid,
+      },
+      UpdateExpression : "set Active=:v0",
+      ExpressionAttributeValues : {":v0": 1}
+    };
+  console.log(updateParams);
+  shareUtil.awsclient.update(updateParams, function (err, data) {
+      callback(err);
+   });
+
+}
 
 function IsEmailExist(email, callback){
   var Params = {

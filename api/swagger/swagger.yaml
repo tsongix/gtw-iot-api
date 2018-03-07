@@ -44,7 +44,7 @@ security:
   - UserSecurity: []
   
 paths:
-  /asset/getAsset:
+  /asset/getAssetByUserID:
     # binds a127 app logic to a route
     x-swagger-router-controller: asset
     get:
@@ -53,7 +53,7 @@ paths:
       summary: Retrieve list of assets
       description: Return list of assets by user id
       # used as the method name of the controller
-      operationId: getAsset
+      operationId: getAssetByUserID
       parameters:
         - name: userID
           in: query
@@ -85,16 +85,16 @@ paths:
           description: Error
           schema:
             $ref: "#/definitions/ErrorResponse"
-  /asset/getSingleAsset:
+  /asset/getAssetParameters:
     # binds a127 app logic to a route
     x-swagger-router-controller: asset
     get:
       tags:
       - asset
-      summary: Retrieve list of assets
-      description: Return list of assets by company id
+      summary: Retrieve list of asset's parameters
+      description: Return list of asset's parameters by asset id
       # used as the method name of the controller
-      operationId: getSingleAsset
+      operationId: getAssetParameters
       parameters:
         - name: AssetID
           in: query

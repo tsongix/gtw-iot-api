@@ -25,8 +25,8 @@ var userManage = require('./userManage.js');
   we specify that in the exports of this module that 'hello' maps to the function named 'hello'
  */
 module.exports = {
-  getAsset: getAssetByUserID,
-  getSingleAsset: getSingleAsset,
+  getAssetByUserID: getAssetByUserID,
+  getAssetParameters: getAssetParameters,
   addAsset: addAsset,
   updateAsset: updateAsset,
   deleteAsset: deleteAsset,
@@ -124,7 +124,7 @@ function getSingleAssetInternal(index, assets, assetout, callback) {
 }
 
 
-function getSingleAsset(req, res) {
+function getAssetParameters(req, res) {
   // variables defined in the Swagger document can be referenced using req.swagger.params.{parameter_name}
   var assetID = req.swagger.params.AssetID.value;
 
